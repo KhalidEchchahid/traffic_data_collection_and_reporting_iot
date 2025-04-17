@@ -1,0 +1,12 @@
+[submodule "kafka-traffic"]
+	path = kafka-traffic
+	url = https://github.com/KhalidEchchahid/kafka-traffic.git
+[submodule "traffic-data-API"]
+	path = traffic-data-API
+	url = https://github.com/KhalidEchchahid/traffic-data-API
+[submodule "Rust-Traffic-Simulator"]
+	path = Rust-Traffic-Simulator
+	url = https://github.com/aymanamkassou/Rust-Traffic-Simulator
+[submodule "traffic-data-visualisation-interface"]
+	path = traffic-data-visualisation-interface
+	url = https://github.com/KhalidEchchahid/traffic-data-visualisation-interface
