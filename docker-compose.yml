@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # Zookeeper - for Kafka coordination
+  zookeeper:
+    image: bitnami/zookeeper:3.9
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - traffic-net
+    restart: unless-stopped
+    volumes:
+      - zookeeper_data:/bitnami/zookeeper
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka - message broker
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,INTERNAL://:29092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092,INTERNAL://kafka:29092
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    depends_on:
+      - zookeeper
+    networks:
+      - traffic-net
+    restart: unless-stopped
+    volumes:
+      - kafka_data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--list", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # MongoDB - database storage
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - traffic-net
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Rust Traffic Simulator - traffic data generator
+  traffic-simulator:
+    build:
+      context: ./Rust-Traffic-Simulator
+      dockerfile: Dockerfile
+    container_name: traffic-simulator
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    networks:
+      - traffic-net
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - SIMULATION_INTERVAL_MS=500
+      - VEHICLES_COUNT=200
+      - INTERSECTIONS_COUNT=20
+      - SENSORS_COUNT=40
+
+  # Kafka Consumer - processes and stores data
+  kafka-consumer:
+    build:
+      context: ./kafka-traffic
+      dockerfile: Dockerfile
+    container_name: kafka-consumer
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - mongodb
+    networks:
+      - traffic-net
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - MONGO_URI=mongodb://admin:admin@mongodb:27017
+
+  # Traffic Data API - backend service
+  traffic-api:
+    build:
+      context: ./traffic-data-API
+      dockerfile: Dockerfile
+    container_name: traffic-api
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+      - kafka
+    networks:
+      - traffic-net
+    environment:
+      - PORT=3001
+      - MONGO_URI=mongodb://admin:admin@mongodb:27017
+      - KAFKA_BROKER=kafka:29092
+      - NODE_ENV=production
+
+  # Traffic Visualization Interface - frontend dashboard
+  traffic-visualization:
+    build:
+      context: ./traffic-data-visualisation-interface
+      dockerfile: Dockerfile
+    container_name: traffic-visualization
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - traffic-api
+    networks:
+      - traffic-net
+    environment:
+      - NEXT_PUBLIC_API_URL=http://traffic-api:3001
+      - NODE_ENV=production
+
+networks:
+  traffic-net:
+    driver: bridge
+
+volumes:
+  zookeeper_data:
+  kafka_data:
+  mongodb_data:
