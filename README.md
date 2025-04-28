@@ -54,7 +54,7 @@ A Next.js web application that offers:
 
 1. Clone the repository with submodules:
 ```bash
-git clone --recurse-submodules https://github.com/yourusername/traffic_data_collection_and_reporting_iot.git
+git clone --recurse-submodules https://github.com/khalidEchchaid/traffic_data_collection_and_reporting_iot.git
 cd traffic_data_collection_and_reporting_iot
 ```
 
